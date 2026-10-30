@@ -80,24 +80,38 @@ function limited(ip: string): boolean {
   return false;
 }
 
-async function callMcpTool(name: string, args: Record<string, unknown>): Promise<string> {
-  const transport = new StdioClientTransport({
-    command: process.platform === "win32" ? "cmd.exe" : "npx",
-    args: process.platform === "win32" ? ["/d", "/s", "/c", "npx --yes ekke-mcp"] : ["--yes", "ekke-mcp"],
-    env: { ...process.env, ...(process.env.GITHUB_TOKEN ? { GITHUB_TOKEN: process.env.GITHUB_TOKEN } : {}) }
-  });
-  const client = new Client({ name: "ekke-chat", version: "0.1.0" }, { capabilities: {} });
-  try {
-    await client.connect(transport);
-    const result = await client.callTool({ name, arguments: args });
-    return result.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("\n")
-      .slice(0, 18_000) || "No matching information was found.";
-  } finally {
-    await client.close().catch(() => undefined);
+let mcpClient: Client | undefined;
+let mcpClientPromise: Promise<Client> | undefined;
+
+async function getMcpClient(): Promise<Client> {
+  if (mcpClient) return mcpClient;
+  if (!mcpClientPromise) {
+    mcpClientPromise = (async () => {
+      const transport = new StdioClientTransport({
+        command: process.platform === "win32" ? "cmd.exe" : "npx",
+        args: process.platform === "win32" ? ["/d", "/s", "/c", "npx --yes ekke-mcp"] : ["--yes", "ekke-mcp"],
+        env: Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined))
+      });
+      const client = new Client({ name: "ekke-chat", version: "0.1.0" }, { capabilities: {} });
+      await client.connect(transport);
+      mcpClient = client;
+      return client;
+    })().catch((error) => {
+      mcpClientPromise = undefined;
+      throw error;
+    });
   }
+  return mcpClientPromise;
+}
+
+async function callMcpTool(name: string, args: Record<string, unknown>): Promise<string> {
+  const client = await getMcpClient();
+  const result = await client.callTool({ name, arguments: args });
+  return result.content
+    .filter((item) => item.type === "text")
+    .map((item) => item.text)
+    .join("\n")
+    .slice(0, 18_000) || "No matching information was found.";
 }
 
 async function askGroq(history: ChatMessage[]): Promise<string> {
@@ -141,7 +155,14 @@ async function askGroq(history: ChatMessage[]): Promise<string> {
       messages.push({ role: "tool", content, tool_call_id: call.id, name: call.function.name });
     }
   }
-  return "I could not complete the search in time. Please try a more specific question.";
+  const finalResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages: [...messages, { role: "system", content: "You have reached the search-call limit for this turn. Answer now using the search results already collected. If they do not contain the answer, say what is missing and do not make another tool call." }], temperature: 0.2 })
+  });
+  if (!finalResponse.ok) throw new Error("Groq returned HTTP " + finalResponse.status + ": " + (await finalResponse.text()).slice(0, 500));
+  const finalData = await finalResponse.json() as { choices?: Array<{ message?: GroqMessage }> };
+  return finalData.choices?.[0]?.message?.content ?? "I could not generate an answer from the search results.";
 }
 
 const server = createServer(async (request, response) => {
