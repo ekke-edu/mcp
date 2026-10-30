@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8fc">
+  <meta name="description" content="Kérdezz az EKKE kurzusairól és hivatalos tanulmányi információiról.">
+  <title>EKKE egyetemi asszisztens</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="EKKE asszisztens kezdőlap">
+        <span class="brand-mark" aria-hidden="true">E</span>
+        <span>EKKE <span class="brand-light">ASSZISZTENS</span></span>
+      </a>
+      <a class="source-link" href="https://ekke-edu.github.io/" target="_blank" rel="noreferrer">EKKE-EDU ↗</a>
+    </header>
+
+    <section class="intro" aria-labelledby="title">
+      <p class="eyebrow"><span class="status-dot"></span> KURZUSOK · TANULMÁNYI INFORMÁCIÓK</p>
+      <h1 id="title">Miben segíthetek?</h1>
+      <p class="lead">Keress az EKKE kurzusai, GitHub discussionjei és az egyetem hivatalos oldalainak információi között.</p>
+      <div class="suggestions" aria-label="Példakérdések">
+        <button class="suggestion" type="button">Mikor van a tárgyfelvételi időszak?</button>
+        <button class="suggestion" type="button">Hol találok anyagokat adatbázisrendszerekhez?</button>
+        <button class="suggestion" type="button">When is the exam period?</button>
+      </div>
+    </section>
+
+    <section class="chat-card" aria-label="Chat">
+      <div id="messages" class="messages" aria-live="polite">
+        <div class="welcome">
+          <span class="assistant-icon" aria-hidden="true">E</span>
+          <p>Szia! Magyarul és angolul is kérdezhetsz. A válaszaim forráslinkeket is tartalmaznak.</p>
+        </div>
+      </div>
+      <form id="chat-form" class="composer">
+        <label class="sr-only" for="question">Írd be a kérdésed</label>
+        <textarea id="question" name="question" rows="1" maxlength="1000" placeholder="Írd be a kérdésed…" required></textarea>
+        <button id="send" class="send-button" type="submit" aria-label="Küldés">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12 20 4l-4 16-4-6-8-2Zm8 2 8-10"/></svg>
+        </button>
+        <p class="composer-note">Az asszisztens tévedhet. Fontos ügyekben ellenőrizd a hivatalos forrást.</p>
+      </form>
+    </section>
+
+    <footer>
+      <span>EKKE MCP · keresés magyarul és angolul</span>
+      <a href="https://github.com/ekke-edu/mcp" target="_blank" rel="noreferrer">Nyílt forráskód ↗</a>
+    </footer>
+  </main>
+</body>
+</html>
