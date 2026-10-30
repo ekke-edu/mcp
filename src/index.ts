@@ -1,17 +1,65 @@
+#!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 
+type Language = "auto" | "hu" | "en" | "both";
+type SearchItem = {
+  title: string;
+  url: string;
+  text: string;
+  source?: string;
+  date?: string;
+  kind?: string;
+  score?: number;
+  snippet?: string;
+};
+type CacheEntry = { time: number; value: unknown };
+type RepositoryConfig = {
+  courseRepositories: string[];
+  discussionRepositories: string[];
+  officialHosts: string[];
+  sitemapUrls: string[];
+  officialSeeds: Array<{ title: string; url: string; text: string; date?: string }>;
+};
+type GitTree = { tree?: Array<{ type: string; path: string; size?: number }> };
+type GitHubIssue = {
+  title: string;
+  html_url: string;
+  body: string | null;
+  updated_at?: string;
+  pull_request?: unknown;
+};
+type DiscussionResponse = {
+  errors?: Array<{ message: string }>;
+  data?: {
+    repository?: {
+      discussions?: {
+        nodes?: Array<{
+          title: string;
+          body: string | null;
+          url: string;
+          updatedAt: string;
+          category?: { name: string };
+          comments?: { nodes?: Array<{ body: string | null }> };
+        }>;
+      } | null;
+    } | null;
+  };
+};
+
+const config = JSON.parse(
+  readFileSync(new URL("../config/sources.json", import.meta.url), "utf8"),
+) as RepositoryConfig;
 const API_ROOT = "https://api.github.com";
 const TOKEN = process.env.GITHUB_TOKEN;
-const COURSE_REPOS = (process.env.EKKE_COURSE_REPOS ??
-  "ekke-edu/advanced-databases-2,ekke-edu/complex-ai-applications,ekke-edu/modern-databases,ekke-edu/cloud-computing")
-  .split(",").map((value) => value.trim()).filter(Boolean);
-const DISCUSSION_REPOS = (process.env.EKKE_DISCUSSION_REPOS ??
-  [...COURSE_REPOS, "ekke-edu/.github"].join(","))
-  .split(",").map((value) => value.trim()).filter(Boolean);
+const COURSE_REPOS = process.env.EKKE_COURSE_REPOS?.split(",").map((value) => value.trim()).filter(Boolean)
+  ?? config.courseRepositories;
+const DISCUSSION_REPOS = process.env.EKKE_DISCUSSION_REPOS?.split(",").map((value) => value.trim()).filter(Boolean)
+  ?? config.discussionRepositories;
 const CACHE_TTL = 15 * 60 * 1000;
-const cache = new Map();
+const cache = new Map<string, CacheEntry>();
 
 const termGroups = [
   ["tanulmányi időszak", "tanév rendje", "academic calendar", "academic year", "semester dates"],
@@ -27,71 +75,32 @@ const termGroups = [
   ["komplex ai alkalmazások", "complex ai applications", "advanced ai applications"],
 ];
 
-const officialHosts = [
-  "uni-eszterhazy.hu",
-  "oktatas.uni-eszterhazy.hu",
-  "io.uni-eszterhazy.hu",
-  "neptunh.uni-eszterhazy.hu",
-];
-const officialSeeds = [
-  {
-    title: "Tanév rendje 2026/27 / Academic calendar 2026/27",
-    url: "https://uni-eszterhazy.hu/api/media/file/545b870eb827db566a71d372fe5cdae0a22d5e1e",
-    text: "Tanév rendje, tanulmányi időszak, szorgalmi időszak, vizsgaidőszak, szünetek, academic calendar, academic year, teaching period, exam period 2026/27",
-    date: "2026/27",
-  },
-  {
-    title: "Tantárgyleírások / Course descriptions",
-    url: "https://io.uni-eszterhazy.hu/szolgaltatasok_tantargyleirasok.html",
-    text: "Tantárgyleírások, kurzusok, tantárgyak, course descriptions, courses, subjects",
-  },
-  {
-    title: "Tanulmányi és Oktatásszervezési Osztály (TO) / Study Office",
-    url: "https://oktatas.uni-eszterhazy.hu/hu/okt_ig/szervezet/tanulmanyi-es-oktatasszervezesi-osztaly-to-eg",
-    text: "Tanulmányi osztály, tanulmányi ügyek, ügyintézés, hallgatói ügyek, study office, student administration, student affairs",
-  },
-  {
-    title: "Ösztöndíjak / Scholarships",
-    url: "https://neptunh.uni-eszterhazy.hu/osztondij/",
-    text: "Ösztöndíjak, ösztöndíj, támogatások, határidők, scholarships, grants, deadlines",
-  },
-];
-const sitemapUrls = officialHosts.flatMap((host) => [
-  `https://${host}/sitemap.xml`,
-  `https://${host}/sitemap_index.xml`,
-]);
-
-function normalize(value) {
+function normalize(value: string): string {
   return value.toLocaleLowerCase("hu")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function expandQuery(query) {
+function expandQuery(query: string): string[] {
   const normalized = normalize(query);
-  const expanded = new Set([query]);
+  const expanded = new Set<string>([query]);
   for (const group of termGroups) {
-    const normalizedGroup = group.map(normalize);
-    if (normalizedGroup.some((term) => term && normalized.includes(term))) {
+    if (group.some((term) => normalized.includes(normalize(term)))) {
       for (const term of group) expanded.add(term);
     }
   }
   return [...expanded].map(normalize).filter(Boolean);
 }
 
-function scoreText(queryTerms, title, text) {
-  const titleText = normalize(title);
-  const bodyText = normalize(text);
-  const allText = `${titleText} ${bodyText}`;
-  let score = 0;
-  for (const term of queryTerms) {
-    if (allText.includes(term)) score += titleText.includes(term) ? 5 : 2;
-  }
-  return score;
+function scoreText(queryTerms: string[], title: string, text: string): number {
+  const normalizedTitle = normalize(title);
+  const allText = `${normalizedTitle} ${normalize(text)}`;
+  return queryTerms.reduce((score, term) =>
+    score + (allText.includes(term) ? (normalizedTitle.includes(term) ? 5 : 2) : 0), 0);
 }
 
-function makeSnippet(queryTerms, text, maxLength = 360) {
-  const plain = String(text ?? "").replace(/\s+/g, " ").trim();
+function makeSnippet(queryTerms: string[], text: string, maxLength = 360): string {
+  const plain = text.replace(/\s+/g, " ").trim();
   const normalized = normalize(plain);
   let index = -1;
   for (const term of queryTerms) {
@@ -104,20 +113,18 @@ function makeSnippet(queryTerms, text, maxLength = 360) {
   return `${start ? "…" : ""}${plain.slice(start, end)}${end < plain.length ? "…" : ""}`;
 }
 
-function escapeMarkdown(value) {
-  return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
+function escapeMarkdown(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim();
 }
 
-function responseText(results, language, notes = []) {
-  const en = language === "en";
-  const both = language === "both";
-  const lines = [];
-  lines.push(en ? "Search results (source text is kept in its original language):" :
-    both ? "Találatok / Search results (az eredeti forrásszöveg nyelvén / in the source language):" :
+function responseText(results: SearchItem[], language: Language, notes: string[] = []): string {
+  const lines: string[] = [];
+  lines.push(language === "en" ? "Search results (source text is kept in its original language):" :
+    language === "both" ? "Találatok / Search results (az eredeti forrásszöveg nyelvén / in the source language):" :
       "Találatok (az eredeti forrásszöveg nyelvén):");
   if (results.length === 0) {
-    lines.push(en ? "No matching source was found. Try a shorter phrase or a Hungarian/English synonym." :
-      both ? "Nincs találat. Próbálj rövidebb kifejezést vagy magyar/angol megfelelőjét. / No results. Try a shorter phrase or its Hungarian/English equivalent." :
+    lines.push(language === "en" ? "No matching source was found. Try a shorter phrase or a Hungarian/English synonym." :
+      language === "both" ? "Nincs találat. Próbálj rövidebb kifejezést vagy magyar/angol megfelelőjét. / No results. Try a shorter phrase or its Hungarian/English equivalent." :
         "Nincs találat. Próbálj rövidebb kifejezést vagy annak magyar/angol megfelelőjét.");
   }
   results.forEach((item, index) => {
@@ -127,15 +134,15 @@ function responseText(results, language, notes = []) {
     if (item.snippet) lines.push(`   ${escapeMarkdown(item.snippet)}`);
   });
   if (notes.length) {
-    lines.push(en ? "\nNotes:" : both ? "\nMegjegyzés / Notes:" : "\nMegjegyzés:");
+    lines.push(language === "en" ? "\nNotes:" : language === "both" ? "\nMegjegyzés / Notes:" : "\nMegjegyzés:");
     for (const note of notes) lines.push(`- ${note}`);
   }
   return lines.join("\n");
 }
 
-async function fetchResponse(url, options = {}) {
+async function fetchResponse<T>(url: string, options: RequestInit = {}): Promise<T> {
   const cached = cache.get(url);
-  if (cached && Date.now() - cached.time < CACHE_TTL) return cached.value;
+  if (cached && Date.now() - cached.time < CACHE_TTL) return cached.value as T;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
@@ -143,21 +150,23 @@ async function fetchResponse(url, options = {}) {
       ...options,
       signal: controller.signal,
       headers: {
-        "User-Agent": "ekke-edu-mcp/0.1.0",
+        "User-Agent": "ekke-mcp/0.1.0",
         ...(options.headers ?? {}),
       },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
     const contentType = response.headers.get("content-type") ?? "";
-    const value = contentType.includes("application/json") ? await response.json() : await response.text();
+    const value: unknown = contentType.includes("application/json")
+      ? await response.json()
+      : await response.text();
     cache.set(url, { time: Date.now(), value });
-    return value;
+    return value as T;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function githubHeaders(json = false) {
+function githubHeaders(json = false): HeadersInit {
   return {
     Accept: json ? "application/vnd.github+json" : "application/vnd.github.raw+json",
     ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
@@ -166,41 +175,42 @@ function githubHeaders(json = false) {
   };
 }
 
-async function fetchCourseFiles(repository) {
+async function fetchCourseFiles(repository: string): Promise<SearchItem[]> {
   const [owner, name] = repository.split("/");
   if (!owner || !name) return [];
-  const tree = await fetchResponse(
+  const tree = await fetchResponse<GitTree>(
     `${API_ROOT}/repos/${owner}/${name}/git/trees/main?recursive=1`,
     { headers: githubHeaders(true) },
   );
   const candidates = (tree.tree ?? [])
-    .filter((item) => item.type === "blob" && item.size <= 150_000 && /\.(md|mdx|txt|rst|html?)$/i.test(item.path))
+    .filter((item) => item.type === "blob" && (item.size ?? 0) <= 150_000 && /\.(md|mdx|txt|rst|html?)$/i.test(item.path))
     .sort((a, b) => {
-      const priority = (path) => /readme|course|kurzus|syllabus|tematika|anyag|lecture|week|lab|feladat/i.test(path) ? 1 : 0;
+      const priority = (path: string) => /readme|course|kurzus|syllabus|tematika|anyag|lecture|week|lab|feladat/i.test(path) ? 1 : 0;
       return priority(b.path) - priority(a.path) || a.path.localeCompare(b.path);
     })
     .slice(0, 12);
-  return Promise.all(candidates.map(async (item) => {
+  const files = await Promise.all(candidates.map(async (item): Promise<SearchItem | null> => {
     try {
-      const url = `https://raw.githubusercontent.com/${owner}/${name}/main/${item.path.split("/").map(encodeURIComponent).join("/")}`;
-      const text = await fetchResponse(url);
+      const path = item.path.split("/").map(encodeURIComponent).join("/");
+      const text = await fetchResponse<string>(`https://raw.githubusercontent.com/${owner}/${name}/main/${path}`);
       return {
         title: item.path,
-        url: `https://github.com/${owner}/${name}/blob/main/${item.path.split("/").map(encodeURIComponent).join("/")}`,
-        text: typeof text === "string" ? text : "",
+        url: `https://github.com/${owner}/${name}/blob/main/${path}`,
+        text,
         source: repository,
         kind: "course material",
       };
     } catch {
       return null;
     }
-  })).then((items) => items.filter(Boolean));
+  }));
+  return files.filter((item): item is SearchItem => item !== null);
 }
 
-async function fetchCourseIssues(repository) {
+async function fetchCourseIssues(repository: string): Promise<SearchItem[]> {
   const [owner, name] = repository.split("/");
   if (!owner || !name) return [];
-  const issues = await fetchResponse(
+  const issues = await fetchResponse<GitHubIssue[]>(
     `${API_ROOT}/repos/${owner}/${name}/issues?state=all&per_page=100&sort=updated&direction=desc`,
     { headers: githubHeaders(true) },
   );
@@ -216,7 +226,7 @@ async function fetchCourseIssues(repository) {
     }));
 }
 
-async function fetchDiscussions(repository) {
+async function fetchDiscussions(repository: string): Promise<SearchItem[]> {
   if (!TOKEN) throw new Error("GITHUB_TOKEN is not configured");
   const [owner, name] = repository.split("/");
   const query = `query($owner: String!, $name: String!) {
@@ -230,7 +240,7 @@ async function fetchDiscussions(repository) {
       }
     }
   }`;
-  const result = await fetchResponse(`${API_ROOT}/graphql?repo=${repository}`, {
+  const result = await fetchResponse<DiscussionResponse>(`${API_ROOT}/graphql?repo=${repository}`, {
     method: "POST",
     headers: { ...githubHeaders(true), Authorization: `Bearer ${TOKEN}` },
     body: JSON.stringify({ query, variables: { owner, name } }),
@@ -241,53 +251,52 @@ async function fetchDiscussions(repository) {
     url: item.url,
     text: [item.body, ...(item.comments?.nodes ?? []).map((comment) => comment.body)].filter(Boolean).join("\n"),
     source: `${repository} · ${item.category?.name ?? "Discussion"}`,
-    date: item.updatedAt?.slice(0, 10),
+    date: item.updatedAt.slice(0, 10),
     kind: "discussion",
   }));
 }
 
-async function searchCourses(query, limit, language) {
+async function searchCourses(query: string, limit: number, language: Language): Promise<string> {
   const terms = expandQuery(query);
-  const notes = [];
+  const notes: string[] = [];
   const perRepo = await Promise.all(COURSE_REPOS.map(async (repository) => {
     try {
       return await Promise.all([fetchCourseFiles(repository), fetchCourseIssues(repository)]);
     } catch (error) {
-      notes.push(`${repository}: ${error.message}`);
-      return [[], []];
+      notes.push(`${repository}: ${error instanceof Error ? error.message : String(error)}`);
+      return [[], []] as SearchItem[][];
     }
   }));
-  const discussionResults = await Promise.all(DISCUSSION_REPOS.map(async (repository) => {
+  const discussions = await Promise.all(DISCUSSION_REPOS.map(async (repository) => {
     try {
       return await fetchDiscussions(repository);
     } catch (error) {
-      if (TOKEN) notes.push(`${repository} discussions: ${error.message}`);
+      if (TOKEN) notes.push(`${repository} discussions: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
   }));
   if (!TOKEN) {
     notes.push("A Discussionök kereséséhez állíts be read-only hozzáférésű GITHUB_TOKEN-t (public_repo scope vagy fine-grained read hozzáférés). / Set a read-only GITHUB_TOKEN to search Discussions.");
   }
-  const items = [...perRepo.flat(2), ...discussionResults.flat()];
-  const results = items.map((item) => ({
-    ...item,
-    score: scoreText(terms, item.title, item.text),
-  })).filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || (b.date ?? "").localeCompare(a.date ?? ""))
+  const items = [...perRepo.flat(2), ...discussions.flat()];
+  const results = items.map((item) => ({ ...item, score: scoreText(terms, item.title, item.text) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.date ?? "").localeCompare(a.date ?? ""))
     .slice(0, limit);
   return responseText(results, language, notes.slice(0, 8));
 }
 
-function safeOfficialUrl(value) {
+function safeOfficialUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && officialHosts.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
+    return url.protocol === "https:" && config.officialHosts.some((host) =>
+      url.hostname === host || url.hostname.endsWith(`.${host}`));
   } catch {
     return false;
   }
 }
 
-function decodeHtml(value) {
+function decodeHtml(value: string): string {
   return value
     .replace(/&nbsp;|&#160;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -295,11 +304,11 @@ function decodeHtml(value) {
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)));
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => String.fromCodePoint(parseInt(code, 16)));
 }
 
-function parsePage(url, html) {
+function parsePage(url: string, html: string): { title: string; text: string } {
   const title = decodeHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? new URL(url).pathname)
     .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   const text = decodeHtml(html
@@ -310,15 +319,15 @@ function parsePage(url, html) {
   return { title, text };
 }
 
-function extractLocations(xml) {
+function extractLocations(xml: string): string[] {
   return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)].map((match) => decodeHtml(match[1].trim()));
 }
 
-async function discoverOfficialUrls() {
-  const urls = new Set(officialSeeds.map((item) => item.url));
-  const sitemapResults = await Promise.all(sitemapUrls.map(async (url) => {
+async function discoverOfficialUrls(): Promise<string[]> {
+  const urls = new Set(config.officialSeeds.map((item) => item.url));
+  const sitemapResults = await Promise.all(config.sitemapUrls.map(async (url) => {
     try {
-      return await fetchResponse(url);
+      return await fetchResponse<string>(url);
     } catch {
       return "";
     }
@@ -327,7 +336,7 @@ async function discoverOfficialUrls() {
     /<sitemapindex\b/i.test(xml) ? extractLocations(xml).filter(safeOfficialUrl).slice(0, 5) : []);
   const nestedResults = await Promise.all(nestedSitemaps.map(async (url) => {
     try {
-      return await fetchResponse(url);
+      return await fetchResponse<string>(url);
     } catch {
       return "";
     }
@@ -340,42 +349,36 @@ async function discoverOfficialUrls() {
   return [...urls];
 }
 
-async function searchOfficial(query, limit, language) {
+async function searchOfficial(query: string, limit: number, language: Language): Promise<string> {
   const terms = expandQuery(query);
-  const discovered = await discoverOfficialUrls();
-  const rankedUrls = discovered.map((url) => {
-    const seed = officialSeeds.find((item) => item.url === url);
+  const urls = await discoverOfficialUrls();
+  const rankedUrls = urls.map((url) => {
+    const seed = config.officialSeeds.find((item) => item.url === url);
     return { url, seed, pathScore: scoreText(terms, seed?.title ?? "", url) };
   }).sort((a, b) => b.pathScore - a.pathScore);
-  const pages = await Promise.all(rankedUrls.slice(0, 24).map(async ({ url, seed }) => {
+  const pages = await Promise.all(rankedUrls.slice(0, 24).map(async ({ url, seed }): Promise<SearchItem | null> => {
     if (seed && url === seed.url && /\/api\/media\/file\//.test(url)) {
       return { title: seed.title, url, text: seed.text, date: seed.date, source: new URL(url).hostname };
     }
     try {
-      const html = await fetchResponse(url);
-      if (typeof html !== "string") return null;
+      const html = await fetchResponse<string>(url);
       const page = parsePage(url, html);
       return { ...page, url, source: new URL(url).hostname };
     } catch {
       return null;
     }
   }));
-  const results = pages.filter(Boolean).map((item) => ({
-    ...item,
-    snippet: makeSnippet(terms, item.text),
-    score: scoreText(terms, item.title, item.text),
-  })).filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
+  const results = pages.filter((item): item is SearchItem => item !== null)
+    .map((item) => ({ ...item, snippet: makeSnippet(terms, item.text), score: scoreText(terms, item.title, item.text) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, limit);
   return responseText(results, language);
 }
 
-const server = new McpServer({
-  name: "ekke-university-assistant",
-  version: "0.1.0",
-});
-
+const server = new McpServer({ name: "ekke-university-assistant", version: "0.2.0" });
 const languageSchema = z.enum(["auto", "hu", "en", "both"]).default("auto");
+
 server.registerTool("search_course_content", {
   description: "Search public EKKE course repository files, issues, and GitHub Discussions. Queries may be written in Hungarian or English; bilingual equivalents are expanded automatically. Returns source links and update dates where available.",
   inputSchema: z.object({
@@ -387,12 +390,12 @@ server.registerTool("search_course_content", {
   try {
     return { content: [{ type: "text", text: await searchCourses(query, limit, language) }] };
   } catch (error) {
-    return { isError: true, content: [{ type: "text", text: `Course search failed: ${error.message}` }] };
+    return { isError: true, content: [{ type: "text", text: `Course search failed: ${error instanceof Error ? error.message : String(error)}` }] };
   }
 });
 
 server.registerTool("search_official_ekke", {
-  description: "Search public pages from the official Eszterházy Károly Catholic University websites. Queries may be Hungarian or English and are expanded with bilingual academic terms. Results include official source links and page text excerpts.",
+  description: "Search public pages from official Eszterházy Károly Catholic University websites. Queries may be Hungarian or English and are expanded with bilingual academic terms. Results include official source links and page text excerpts.",
   inputSchema: z.object({
     query: z.string().trim().min(2).max(300).describe("Search phrase in Hungarian or English / Keresőkifejezés magyarul vagy angolul"),
     language: languageSchema.describe("Response labels only; results are always searched in both languages"),
@@ -402,7 +405,7 @@ server.registerTool("search_official_ekke", {
   try {
     return { content: [{ type: "text", text: await searchOfficial(query, limit, language) }] };
   } catch (error) {
-    return { isError: true, content: [{ type: "text", text: `Official EKKE search failed: ${error.message}` }] };
+    return { isError: true, content: [{ type: "text", text: `Official EKKE search failed: ${error instanceof Error ? error.message : String(error)}` }] };
   }
 });
 

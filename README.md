@@ -11,6 +11,24 @@ Magyarul és angolul is lehet keresni. The search expands common Hungarian and E
 
 The `language` option (`auto`, `hu`, `en`, `both`) controls response labels; it never restricts search to one language. Query expansion is rule-based and deliberately small, not machine translation.
 
+## npm package
+
+The package is named `ekke-mcp`. After release, it can be installed with:
+
+```sh
+npx ekke-mcp
+```
+
+For local development and packing:
+
+```sh
+npm install
+npm run build
+npm pack
+```
+
+Publishing to npm is a separate release action and requires an npm account with package publish rights. This PR prepares the package metadata and executable; it does not publish a release.
+
 ## Requirements
 
 - Node.js 20+
@@ -21,46 +39,38 @@ Without `GITHUB_TOKEN`, course files and issues can still be searched (subject t
 
 ## Run locally
 
-```sh
-npm install
-```
-
 Set `GITHUB_TOKEN` in the environment running the MCP client. For PowerShell:
 
 ```powershell
 $env:GITHUB_TOKEN = "YOUR_READ_ONLY_TOKEN"
-npm start
+npm run dev
 ```
 
-For VS Code, add an MCP server entry to `.vscode/mcp.json` (replace the path and provide the token outside the repository):
+After building, run `npm start`. A host can also launch the npm binary as a stdio MCP server and pass `GITHUB_TOKEN` in its environment:
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "ekke-university-assistant": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["C:/path/to/ekke-edu/mcp/src/index.js"],
+      "command": "npx",
+      "args": ["-y", "ekke-mcp"],
       "env": {
         "GITHUB_TOKEN": "${input:ekkeGitHubToken}"
       }
     }
-  },
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "ekkeGitHubToken",
-      "description": "Read-only GitHub token for public EKKE Discussions",
-      "password": true
-    }
-  ]
+  }
 }
 ```
 
+Do not commit a real token. See `.env.example` for the supported environment variables.
+
 ## Configuration
 
-- `EKKE_COURSE_REPOS`: comma-separated public repositories containing course materials. Defaults to the four EKKE-EDU course repositories.
-- `EKKE_DISCUSSION_REPOS`: repositories whose Discussions should be searched. Defaults to the course repositories plus `ekke-edu/.github` for organization-wide discussions.
-- Search results are cached in memory for 15 minutes. Official-site discovery uses sitemaps when available and only fetches HTTPS pages hosted under `*.uni-eszterhazy.hu`.
+Non-secret defaults are stored in `config/sources.json`. You can edit repository lists, official host allowlists, sitemaps, and curated links there. Environment variables override repository lists:
 
-No credentials, student records, or Neptun data are accessed. This first version is read-only and has no hosted chat or model API key.
+- `EKKE_COURSE_REPOS`: comma-separated public repositories containing course materials.
+- `EKKE_DISCUSSION_REPOS`: comma-separated repositories whose Discussions should be searched.
+
+Search results are cached in memory for 15 minutes. Official-site discovery uses sitemaps when available and only fetches HTTPS pages hosted under configured EKKE domains.
+
+No student records or Neptun credentials are accessed. This first version is read-only and has no hosted chat or model API key.

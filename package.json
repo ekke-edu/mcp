@@ -1,17 +1,33 @@
 {
-  "name": "ekke-university-assistant-mcp",
-  "version": "0.1.0",
-  "private": true,
+  "name": "ekke-mcp",
+  "version": "0.2.0",
+  "description": "Bilingual MCP search for EKKE course repositories, discussions, and official university pages.",
   "type": "module",
-  "description": "Bilingual MCP search for EKKE course repositories, GitHub Discussions, and official university pages.",
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "ekke-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "config/sources.json",
+    "README.md"
+  ],
   "scripts": {
-    "start": "node src/index.js"
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
     "zod": "^4.0.0"
-  }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.0"
+  },
+  "license": "MIT"
 }

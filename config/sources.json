@@ -1,0 +1,54 @@
+{
+  "courseRepositories": [
+    "ekke-edu/advanced-databases-2",
+    "ekke-edu/complex-ai-applications",
+    "ekke-edu/modern-databases",
+    "ekke-edu/cloud-computing"
+  ],
+  "discussionRepositories": [
+    "ekke-edu/advanced-databases-2",
+    "ekke-edu/complex-ai-applications",
+    "ekke-edu/modern-databases",
+    "ekke-edu/cloud-computing",
+    "ekke-edu/.github"
+  ],
+  "officialHosts": [
+    "uni-eszterhazy.hu",
+    "oktatas.uni-eszterhazy.hu",
+    "io.uni-eszterhazy.hu",
+    "neptunh.uni-eszterhazy.hu"
+  ],
+  "sitemapUrls": [
+    "https://uni-eszterhazy.hu/sitemap.xml",
+    "https://uni-eszterhazy.hu/sitemap_index.xml",
+    "https://oktatas.uni-eszterhazy.hu/sitemap.xml",
+    "https://oktatas.uni-eszterhazy.hu/sitemap_index.xml",
+    "https://io.uni-eszterhazy.hu/sitemap.xml",
+    "https://io.uni-eszterhazy.hu/sitemap_index.xml",
+    "https://neptunh.uni-eszterhazy.hu/sitemap.xml",
+    "https://neptunh.uni-eszterhazy.hu/sitemap_index.xml"
+  ],
+  "officialSeeds": [
+    {
+      "title": "Tanév rendje 2026/27 / Academic calendar 2026/27",
+      "url": "https://uni-eszterhazy.hu/api/media/file/545b870eb827db566a71d372fe5cdae0a22d5e1e",
+      "text": "Tanév rendje, tanulmányi időszak, szorgalmi időszak, vizsgaidőszak, szünetek, academic calendar, academic year, teaching period, exam period 2026/27",
+      "date": "2026/27"
+    },
+    {
+      "title": "Tantárgyleírások / Course descriptions",
+      "url": "https://io.uni-eszterhazy.hu/szolgaltatasok_tantargyleirasok.html",
+      "text": "Tantárgyleírások, kurzusok, tantárgyak, course descriptions, courses, subjects"
+    },
+    {
+      "title": "Tanulmányi és Oktatásszervezési Osztály (TO) / Study Office",
+      "url": "https://oktatas.uni-eszterhazy.hu/hu/okt_ig/szervezet/tanulmanyi-es-oktatasszervezesi-osztaly-to-eg",
+      "text": "Tanulmányi osztály, tanulmányi ügyek, ügyintézés, hallgatói ügyek, study office, student administration, student affairs"
+    },
+    {
+      "title": "Ösztöndíjak / Scholarships",
+      "url": "https://neptunh.uni-eszterhazy.hu/osztondij/",
+      "text": "Ösztöndíjak, ösztöndíj, támogatások, határidők, scholarships, grants, deadlines"
+    }
+  ]
+}
