@@ -22,16 +22,28 @@ npx ekke-mcp
 For local development and packing:
 
 ```sh
-npm install
-npm run build
-npm pack
+pnpm install
+pnpm build
+pnpm test
+pnpm pack
 ```
 
-Publishing to npm is a separate release action and requires an npm account with package publish rights. This PR prepares the package metadata and executable; it does not publish a release.
+## Versioning and releases
+
+Use the repository script to bump the patch version and create a conventional commit plus an annotated `vX.Y.Z` Git tag:
+
+```sh
+pnpm release:patch
+git push origin main --follow-tags
+```
+
+This runs `pnpm version patch --message "chore: release v%s"`. The working tree must be clean. Note that `pnpm patch` by itself patches a dependency; `pnpm version patch` is the version bump.
+
+Pushing the tag starts the release workflow. It reruns the build and tests, packs the npm package, then creates a GitHub Release with generated release notes and the `.tgz` attached. It does not publish to npm automatically; npm publishing remains a separate release action until trusted publishing is configured.
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22+ and pnpm 11.25.0 for development
 - A GitHub token with read-only access to the public EKKE repositories. GitHub's Discussions GraphQL API requires authentication. For a classic token, GitHub documents `public_repo` scope for public repositories; a fine-grained token can be limited to the required repositories and read-only permissions.
 - Network access to GitHub and the official EKKE domains.
 
@@ -43,10 +55,10 @@ Set `GITHUB_TOKEN` in the environment running the MCP client. For PowerShell:
 
 ```powershell
 $env:GITHUB_TOKEN = "YOUR_READ_ONLY_TOKEN"
-npm run dev
+pnpm dev
 ```
 
-After building, run `npm start`. A host can also launch the npm binary as a stdio MCP server and pass `GITHUB_TOKEN` in its environment:
+After building, run `pnpm start`. A host can also launch the npm binary as a stdio MCP server and pass `GITHUB_TOKEN` in its environment:
 
 ```json
 {
