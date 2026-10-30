@@ -1,6 +1,6 @@
 {
   "name": "ekke-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Bilingual MCP search for EKKE course repositories, discussions, and official university pages.",
   "type": "module",
   "engines": {
