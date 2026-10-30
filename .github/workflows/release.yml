@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to finish publishing (for example v0.2.2)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,8 +19,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: pnpm/setup@v3
         with:
           version: 11.25.0
@@ -25,11 +35,17 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - name: Verify tag matches package version
-        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+        run: test "v$(node -p 'require("./package.json").version')" = "$RELEASE_TAG"
       - run: pnpm build
       - run: pnpm test
       - name: Publish to npm with trusted publishing
-        run: npm publish
+        run: |
+          PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
+          if npm view "ekke-mcp@$PACKAGE_VERSION" version >/dev/null 2>&1; then
+            echo "ekke-mcp@$PACKAGE_VERSION is already published; skipping npm publish."
+          else
+            npm publish
+          fi
       - run: mkdir -p release-assets
       - run: pnpm pack --pack-destination release-assets
       - name: Prepare GitHub Packages copy
@@ -48,8 +64,19 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm publish --registry=https://npm.pkg.github.com --access public
+          printf '%s\\n' '@ekke-edu:registry=https://npm.pkg.github.com' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > .npmrc
+          PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
+          if npm view "@ekke-edu/ekke-mcp@$PACKAGE_VERSION" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "@ekke-edu/ekke-mcp@$PACKAGE_VERSION is already published; skipping GitHub Packages publish."
+          else
+            npm publish --registry=https://npm.pkg.github.com --access public
+          fi
       - name: Create GitHub Release with generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes release-assets/*.tgz
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/*.tgz --clobber
+          else
+            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --generate-notes release-assets/*.tgz
+          fi
