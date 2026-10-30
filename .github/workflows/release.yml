@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/setup@v3
+        with:
+          version: 11.25.0
+          runtime: node@24
+      - run: pnpm install --frozen-lockfile
+      - name: Verify tag matches package version
+        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+      - run: pnpm build
+      - run: pnpm test
+      - run: mkdir -p release-assets
+      - run: pnpm pack --pack-destination release-assets
+      - name: Create GitHub Release with generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes release-assets/*.tgz
