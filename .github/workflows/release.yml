@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  packages: write
 
 jobs:
   release:
@@ -17,13 +19,36 @@ jobs:
         with:
           version: 11.25.0
           runtime: node@24
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - name: Verify tag matches package version
         run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
       - run: pnpm build
       - run: pnpm test
+      - name: Publish to npm with trusted publishing
+        run: npm publish
       - run: mkdir -p release-assets
       - run: pnpm pack --pack-destination release-assets
+      - name: Prepare GitHub Packages copy
+        run: |
+          mkdir github-package
+          tar -xzf release-assets/*.tgz -C github-package --strip-components=1
+          node <<'NODE'
+          const fs = require('node:fs');
+          const packagePath = 'github-package/package.json';
+          const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          pkg.name = '@ekke-edu/ekke-mcp';
+          fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + '\n');
+          NODE
+      - name: Publish to GitHub Packages
+        working-directory: github-package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm publish --registry=https://npm.pkg.github.com --access public
       - name: Create GitHub Release with generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
