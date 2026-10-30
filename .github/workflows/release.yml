@@ -64,7 +64,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          printf '%s\\n' '@ekke-edu:registry=https://npm.pkg.github.com' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > .npmrc
+          printf '%s\n' '@ekke-edu:registry=https://npm.pkg.github.com' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > .npmrc
           PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
           if npm view "@ekke-edu/ekke-mcp@$PACKAGE_VERSION" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
             echo "@ekke-edu/ekke-mcp@$PACKAGE_VERSION is already published; skipping GitHub Packages publish."
