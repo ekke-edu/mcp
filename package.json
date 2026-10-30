@@ -1,6 +1,6 @@
 {
   "name": "ekke-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bilingual MCP search for EKKE course repositories, discussions, and official university pages.",
   "type": "module",
   "engines": {
@@ -27,10 +27,10 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
-    "typescript": "^6.0.0",
-    "@modelcontextprotocol/client": "2.4.0"
+    "typescript": "^6.0.0"
   },
   "license": "MIT",
   "packageManager": "pnpm@11.25.0"
