@@ -120,10 +120,11 @@ async function askGroq(history: ChatMessage[]): Promise<string> {
   let messages: GroqMessage[] = [
     {
       role: "system",
-      content: "You are the EKKE University Assistant. Answer in the language of the latest user message (Hungarian or English). For current EKKE facts, search the relevant MCP tool before answering. Never invent dates, requirements, people, or links. Cite sources as Markdown links using URLs returned by tools. If sources do not answer the question, say so clearly and suggest the official Study Office. Do not claim to access private student records. Keep answers clear and concise."
+      content: "You are the EKKE University Assistant. Answer in the language of the latest user message (Hungarian or English). You may call only the tools explicitly listed in this request: search_course_content and search_official_ekke. Never invent or call another tool name such as open_file. For current EKKE facts, search the relevant MCP tool before answering. Never invent dates, requirements, people, or links. Cite sources as Markdown links using URLs returned by tools. If sources do not answer the question, say so clearly and suggest the official Study Office. Do not claim to access private student records. Keep answers clear and concise."
     },
     ...history.slice(-10).map(({ role, content }) => ({ role, content }))
   ];
+  let invalidToolRetryUsed = false;
   for (let iteration = 0; iteration < 4; iteration += 1) {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -131,9 +132,21 @@ async function askGroq(history: ChatMessage[]): Promise<string> {
       body: JSON.stringify({ model, messages, tools, tool_choice: "auto", temperature: 0.2 })
     });
     if (!response.ok) {
+      const detail = await response.text();
       if (response.status === 429) throw new Error("The Groq free-tier limit was reached. Please wait a little and try again.");
-      const detail = (await response.text()).slice(0, 500);
-      throw new Error(`Groq returned HTTP ${response.status}: ${detail}`);
+      if (response.status === 400 && detail.includes("tool_use_failed") && !invalidToolRetryUsed) {
+        invalidToolRetryUsed = true;
+        messages.push({
+          role: "system",
+          content: "Your previous tool request was invalid. Retry using only the exact tools search_course_content or search_official_ekke from the provided tool list. Do not call open_file or any other tool."
+        });
+        iteration -= 1;
+        continue;
+      }
+      if (response.status === 400 && detail.includes("tool_use_failed")) {
+        throw new Error("The AI tried to use an unsupported search function twice. Please rephrase your question and try again.");
+      }
+      throw new Error(`Groq returned HTTP ${response.status}: ${detail.slice(0, 500)}`);
     }
     const data = await response.json() as { choices?: Array<{ message?: GroqMessage }> };
     const message = data.choices?.[0]?.message;
