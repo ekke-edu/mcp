@@ -41,7 +41,9 @@ git push origin main --follow-tags
 
 These run `pnpm version patch|minor|major --message "chore: release v%s"`. The working tree must be clean. Note that `pnpm patch` by itself patches a dependency; `pnpm version` is the package version bump.
 
-Pushing the tag starts the release workflow. It reruns the build and tests, publishes `ekke-mcp` to npm using npm trusted publishing, publishes the scoped `@ekke-edu/ekke-mcp` package to GitHub Packages, and creates a GitHub Release with generated notes and the `.tgz` attached. GitHub Packages requires a scoped package name, so its install name differs from the unscoped npm package.
+Pushing the tag starts the release workflow. It reruns the build and tests, publishes `ekke-mcp` to npm using npm trusted publishing, publishes the scoped `@ekke-edu/ekke-mcp` package to GitHub Packages, and creates a GitHub Release with generated notes and the `.tgz` attached. GitHub Packages requires a scoped package name, so its install name differs from the unscoped npm package. The workflow skips registry versions that already exist and can safely finish an interrupted release.
+
+To finish a release that is already on npm but missing from GitHub Packages, open **Actions → Release → Run workflow**, choose `main`, and enter the tag (for example, `v0.2.2`). This republishes only to registries where that version is missing and attaches the package archive to the existing GitHub Release.
 
 Before the first automated release, configure npm trusted publishing for `ekke-mcp` on npmjs.com: select GitHub Actions, organization `ekke-edu`, repository `mcp`, and workflow filename `release.yml`; allow direct publishing. This uses OIDC and needs no npm token secret. The workflow links the GitHub Packages copy to this repository through the `repository` field. GitHub makes the package private on first publish by default; confirm its visibility in the package settings after the first release, since the organization may disable inherited repository permissions.
 
