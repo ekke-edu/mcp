@@ -189,8 +189,17 @@ async function askGroq(history: ChatMessage[]): Promise<string> {
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+  if (request.method === "GET" && url.pathname === "/health") {
+    return json(response, 200, { status: "ok" });
+  }
   if (request.method === "POST" && url.pathname === "/api/chat") {
-    const ip = request.socket.remoteAddress ?? "local";
+    const origin = request.headers.origin;
+    const forwardedProto = request.headers["x-forwarded-proto"];
+    const protocol = (typeof forwardedProto === "string" ? forwardedProto.split(",")[0] : "http").trim();
+    const expectedOrigin = protocol + "://" + (request.headers.host ?? "");
+    if (origin && origin !== expectedOrigin) return json(response, 403, { error: "Requests must come from the chat page." });
+    const forwardedFor = request.headers["x-forwarded-for"];
+    const ip = (typeof forwardedFor === "string" ? forwardedFor.split(",")[0].trim() : request.socket.remoteAddress) ?? "local";
     if (limited(ip)) return json(response, 429, { error: "Too many requests. Please wait a minute and try again." });
     try {
       const body = await readJson(request) as { messages?: unknown };
@@ -225,7 +234,12 @@ const server = createServer(async (request, response) => {
   try {
     const content = await readFile(file);
     const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml" };
-    response.writeHead(200, { "Content-Type": types[extname(file)] ?? "application/octet-stream", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" });
+    response.writeHead(200, {
+      "Content-Type": types[extname(file)] ?? "application/octet-stream",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+      ...(extname(file) === ".html" ? { "Content-Security-Policy": "frame-ancestors 'self' https://ekke-edu.github.io" } : {})
+    });
     response.end(request.method === "HEAD" ? undefined : content);
   } catch {
     response.writeHead(404).end("Not found");
