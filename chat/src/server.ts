@@ -52,7 +52,7 @@ const tools = [
 ] as const;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
-type GroqMessage = { role: string; content: string | null; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> };
+type GroqMessage = { role: string; content: string | null; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }>; tool_call_id?: string; name?: string };
 
 function json(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -138,9 +138,7 @@ async function askGroq(history: ChatMessage[]): Promise<string> {
       } catch (error) {
         content = `Search failed: ${error instanceof Error ? error.message : String(error)}`;
       }
-      messages.push({ role: "tool", content, tool_calls: undefined });
-      (messages[messages.length - 1] as GroqMessage & { tool_call_id?: string; name?: string }).tool_call_id = call.id;
-      (messages[messages.length - 1] as GroqMessage & { name?: string }).name = call.function.name;
+      messages.push({ role: "tool", content, tool_call_id: call.id, name: call.function.name });
     }
   }
   return "I could not complete the search in time. Please try a more specific question.";
