@@ -82,8 +82,8 @@ function limited(ip: string): boolean {
 
 async function callMcpTool(name: string, args: Record<string, unknown>): Promise<string> {
   const transport = new StdioClientTransport({
-    command: process.platform === "win32" ? "npx.cmd" : "npx",
-    args: ["--yes", "ekke-mcp"],
+    command: process.platform === "win32" ? "cmd.exe" : "npx",
+    args: process.platform === "win32" ? ["/d", "/s", "/c", "npx --yes ekke-mcp"] : ["--yes", "ekke-mcp"],
     env: { ...process.env, ...(process.env.GITHUB_TOKEN ? { GITHUB_TOKEN: process.env.GITHUB_TOKEN } : {}) }
   });
   const client = new Client({ name: "ekke-chat", version: "0.1.0" }, { capabilities: {} });
