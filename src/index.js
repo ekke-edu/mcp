@@ -246,7 +246,7 @@ async function fetchDiscussions(repository) {
   }));
 }
 
-async function searchCourses(query, limit) {
+async function searchCourses(query, limit, language) {
   const terms = expandQuery(query);
   const notes = [];
   const perRepo = await Promise.all(COURSE_REPOS.map(async (repository) => {
@@ -275,7 +275,7 @@ async function searchCourses(query, limit) {
   })).filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || (b.date ?? "").localeCompare(a.date ?? ""))
     .slice(0, limit);
-  return responseText(results, "both", notes.slice(0, 8));
+  return responseText(results, language, notes.slice(0, 8));
 }
 
 function safeOfficialUrl(value) {
@@ -340,7 +340,7 @@ async function discoverOfficialUrls() {
   return [...urls];
 }
 
-async function searchOfficial(query, limit) {
+async function searchOfficial(query, limit, language) {
   const terms = expandQuery(query);
   const discovered = await discoverOfficialUrls();
   const rankedUrls = discovered.map((url) => {
@@ -367,7 +367,7 @@ async function searchOfficial(query, limit) {
   })).filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
-  return responseText(results, "both");
+  return responseText(results, language);
 }
 
 const server = new McpServer({
@@ -385,7 +385,7 @@ server.registerTool("search_course_content", {
   }),
 }, async ({ query, language, limit }) => {
   try {
-    return { content: [{ type: "text", text: await searchCourses(query, limit) }] };
+    return { content: [{ type: "text", text: await searchCourses(query, limit, language) }] };
   } catch (error) {
     return { isError: true, content: [{ type: "text", text: `Course search failed: ${error.message}` }] };
   }
@@ -400,7 +400,7 @@ server.registerTool("search_official_ekke", {
   }),
 }, async ({ query, language, limit }) => {
   try {
-    return { content: [{ type: "text", text: await searchOfficial(query, limit) }] };
+    return { content: [{ type: "text", text: await searchOfficial(query, limit, language) }] };
   } catch (error) {
     return { isError: true, content: [{ type: "text", text: `Official EKKE search failed: ${error.message}` }] };
   }
