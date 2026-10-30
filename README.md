@@ -30,16 +30,22 @@ pnpm pack
 
 ## Versioning and releases
 
-Use the repository script to bump the patch version and create a conventional commit plus an annotated `vX.Y.Z` Git tag:
+Choose the version bump that matches the change. Each script creates a conventional release commit and an annotated `vX.Y.Z` Git tag:
 
 ```sh
-pnpm release:patch
+pnpm release:patch # bugfix
+pnpm release:minor # backward-compatible feature
+pnpm release:major # breaking change
 git push origin main --follow-tags
 ```
 
-This runs `pnpm version patch --message "chore: release v%s"`. The working tree must be clean. Note that `pnpm patch` by itself patches a dependency; `pnpm version patch` is the version bump.
+These run `pnpm version patch|minor|major --message "chore: release v%s"`. The working tree must be clean. Note that `pnpm patch` by itself patches a dependency; `pnpm version` is the package version bump.
 
-Pushing the tag starts the release workflow. It reruns the build and tests, packs the npm package, then creates a GitHub Release with generated release notes and the `.tgz` attached. It does not publish to npm automatically; npm publishing remains a separate release action until trusted publishing is configured.
+Pushing the tag starts the release workflow. It reruns the build and tests, publishes `ekke-mcp` to npm using npm trusted publishing, publishes the scoped `@ekke-edu/ekke-mcp` package to GitHub Packages, and creates a GitHub Release with generated notes and the `.tgz` attached. GitHub Packages requires a scoped package name, so its install name differs from the unscoped npm package.
+
+Before the first automated release, configure npm trusted publishing for `ekke-mcp` on npmjs.com: select GitHub Actions, organization `ekke-edu`, repository `mcp`, and workflow filename `release.yml`; allow direct publishing. This uses OIDC and needs no npm token secret. The workflow links the GitHub Packages copy to this repository through the `repository` field. GitHub makes the package private on first publish by default; confirm its visibility in the package settings after the first release, since the organization may disable inherited repository permissions.
+
+Install from GitHub Packages with `@ekke-edu:registry=https://npm.pkg.github.com` configured in `.npmrc`, then run `npm install @ekke-edu/ekke-mcp`.
 
 ## Requirements
 
