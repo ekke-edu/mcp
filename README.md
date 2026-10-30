@@ -93,4 +93,4 @@ Non-secret defaults are stored in `config/sources.json`. You can edit repository
 
 Search results are cached in memory for 15 minutes. Official-site discovery uses sitemaps when available and only fetches HTTPS pages hosted under configured EKKE domains.
 
-No student records or Neptun credentials are accessed. This first version is read-only and has no hosted chat or model API key.
+No student records or Neptun credentials are accessed. The MCP server is read-only. A local Groq-powered chat MVP is available in [`chat/`](chat/README.md); it is not hosted, and its API key must be configured locally.
