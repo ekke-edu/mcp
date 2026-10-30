@@ -20,7 +20,9 @@
     "dev": "tsx src/index.ts",
     "prepack": "pnpm run build",
     "test": "node --test",
-    "release:patch": "pnpm version patch --message \"chore: release v%s\""
+    "release:patch": "pnpm version patch --message \"chore: release v%s\"",
+    "release:minor": "pnpm version minor --message \"chore: release v%s\"",
+    "release:major": "pnpm version major --message \"chore: release v%s\""
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
@@ -33,5 +35,9 @@
     "typescript": "^6.0.0"
   },
   "license": "MIT",
-  "packageManager": "pnpm@11.25.0"
+  "packageManager": "pnpm@11.25.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ekke-edu/mcp.git"
+  }
 }
