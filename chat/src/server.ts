@@ -25,7 +25,7 @@ const tools = [
         properties: {
           query: { type: "string", description: "Search phrase in Hungarian or English" },
           language: { type: "string", enum: ["auto", "hu", "en", "both"], description: "Language of response labels" },
-          limit: { type: "integer", minimum: 1, maximum: 8 }
+          limit: { type: "integer", minimum: 1, maximum: 20 }
         },
         required: ["query"],
         additionalProperties: false
