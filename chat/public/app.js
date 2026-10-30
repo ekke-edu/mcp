@@ -12,30 +12,29 @@ function escapeHtml(value) {
 
 function inlineMarkdown(value) {
   return escapeHtml(value)
-    .replace(/\\[([^\\]]+)\\]\\((https:\\/\\/[^\\s)]+)\\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1 ↗</a>')
-    .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>');
+    .replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1 ↗</a>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 
 function formatAnswer(value) {
-  const lines = value.split(/\\r?\\n/);
+  const lines = value.split(/\r?\n/);
   const output = [];
   let listType = null;
   const closeList = () => {
-    if (listType) output.push(`</${listType}>`);
+    if (listType) output.push("</" + listType + ">");
     listType = null;
   };
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    const unordered = line.match(/^[-*]\\s+(.+)/);
-    const ordered = line.match(/^\\d+[.)]\\s+(.+)/);
+    const unordered = line.match(/^[-*]\s+(.+)/);
+    const ordered = line.match(/^\d+[.)]\s+(.+)/);
     if (unordered || ordered) {
       const nextType = unordered ? "ul" : "ol";
-      if (listType !== nextType) { closeList(); output.push(`<${nextType}>`); listType = nextType; }
-      output.push(`<li>${inlineMarkdown((unordered || ordered)[1])}</li>`);
+      if (listType !== nextType) { closeList(); output.push("<" + nextType + ">"); listType = nextType; }
+      output.push("<li>" + inlineMarkdown((unordered || ordered)[1]) + "</li>");
     } else {
       closeList();
-      if (line) output.push(`<p>${inlineMarkdown(line)}</p>`);
+      if (line) output.push("<p>" + inlineMarkdown(line) + "</p>");
     }
   }
   closeList();
