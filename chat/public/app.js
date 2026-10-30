@@ -3,6 +3,7 @@ const input = document.querySelector("#question");
 const messagesEl = document.querySelector("#messages");
 const sendButton = document.querySelector("#send");
 const history = [];
+if (new URLSearchParams(location.search).get("embed") === "1") document.body.classList.add("embedded");
 
 function escapeHtml(value) {
   return value.replace(/[&<>"']/g, (char) => ({
