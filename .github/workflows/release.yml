@@ -80,6 +80,8 @@ jobs:
 
   github-release:
     needs: release
+    permissions:
+      contents: write
     uses: ekke-edu/.github/.github/workflows/release.yml@main
     with:
       tag: ${{ inputs.tag || github.ref_name }}
