@@ -21,6 +21,7 @@ export function parsePage(url: string, html: string): { title: string; text: str
   const title = decodeHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? new URL(url).pathname)
     .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   const text = decodeHtml(html
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, " ")
     .replace(/<(script|style|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<!--([\s\S]*?)-->/g, " ")
     .replace(/<[^>]+>/g, " "))
