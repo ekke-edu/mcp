@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { decodeHtml, extractLocations, parsePage } from "../dist/official-page.js";
 
 test("decodes named and numeric HTML entities", () => {
-  assert.equal(decodeHtml("&nbsp;&#160;&amp;&quot;&#39;&lt;&#62;&#x1F642;"), "  &\"'< >🙂");
+  assert.equal(decodeHtml("&nbsp;&#160;&amp;&quot;&#39;&lt;&#62;&#x1F642;"), "  &\"'<>🙂");
 });
 
 test("extracts readable page text and excludes non-content elements", () => {
