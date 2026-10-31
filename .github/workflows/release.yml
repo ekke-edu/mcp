@@ -71,12 +71,17 @@ jobs:
           else
             npm publish --registry=https://npm.pkg.github.com --access public
           fi
-      - name: Create GitHub Release with generated notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release-assets/*.tgz --clobber
-          else
-            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --generate-notes release-assets/*.tgz
-          fi
+      - name: Upload package archive for shared release workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: ekke-mcp-release-assets
+          path: release-assets/*.tgz
+          if-no-files-found: error
+
+  github-release:
+    needs: release
+    uses: ekke-edu/.github/.github/workflows/release.yml@main
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}
+      artifact-name: ekke-mcp-release-assets
+    secrets: inherit
