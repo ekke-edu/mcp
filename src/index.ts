@@ -5,6 +5,7 @@ import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { expandQuery, makeSnippet, responseText, safeOfficialUrl, scoreText } from "./search.js";
 import type { Language, SearchItem } from "./search.js";
+import { decodeHtml, extractLocations, parsePage } from "./official-page.js";
 
 type CacheEntry = { time: number; value: unknown };
 type RepositoryConfig = {
@@ -198,32 +199,7 @@ async function searchCourses(query: string, limit: number, language: Language): 
   return responseText(results, language, notes.slice(0, 8));
 }
 
-function decodeHtml(value: string): string {
-  return value
-    .replace(/&nbsp;|&#160;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => String.fromCodePoint(parseInt(code, 16)));
-}
 
-function parsePage(url: string, html: string): { title: string; text: string } {
-  const title = decodeHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? new URL(url).pathname)
-    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const text = decodeHtml(html
-    .replace(/<(script|style|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<!--([\s\S]*?)-->/g, " ")
-    .replace(/<[^>]+>/g, " "))
-    .replace(/\s+/g, " ").trim();
-  return { title, text };
-}
-
-function extractLocations(xml: string): string[] {
-  return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)].map((match) => decodeHtml(match[1].trim()));
-}
 
 async function discoverOfficialUrls(): Promise<string[]> {
   const urls = new Set(config.officialSeeds.map((item) => item.url));
